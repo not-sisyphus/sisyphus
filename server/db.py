@@ -1,59 +1,52 @@
-import os
-import asyncpg
-from dotenv import load_dotenv
+# init_db.py
+import sqlite3
 
-load_dotenv()
+database_path = "database.sqlite"
 
-connection_string = os.getenv("DATABASE_URL")
 
-async def initialize_database():
-    conn = await asyncpg.connect(connection_string)
+def initialize_database():
+	conn = sqlite3.connect(database_path)
+	try:
+		cursor = conn.cursor()
 
-    try:
-        # Create Users table first
-        await conn.execute("""
+		# Create Users table first
+		cursor.execute("""
             CREATE TABLE IF NOT EXISTS Users (
-                id SERIAL PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                session_id INTEGER
+                session_id INTEGER,
+                FOREIGN KEY (session_id) REFERENCES Sessions(id) ON DELETE SET NULL
             );
         """)
 
-        # Create Sessions table
-        await conn.execute("""
+		# Create Sessions table
+		cursor.execute("""
             CREATE TABLE IF NOT EXISTS Sessions (
-                id SERIAL PRIMARY KEY,
-                creator_id INTEGER NOT NULL REFERENCES Users(id) ON DELETE CASCADE,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                creator_id INTEGER NOT NULL,
                 code TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT NOW()
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (creator_id) REFERENCES Users(id) ON DELETE CASCADE
             );
         """)
 
-        # Add foreign key to Users table after Sessions exists
-        await conn.execute("""
-            ALTER TABLE Users 
-            ADD CONSTRAINT fk_session 
-            FOREIGN KEY (session_id) 
-            REFERENCES Sessions(id) 
-            ON DELETE SET NULL;
-        """)
-
-        # Create Votes table
-        await conn.execute("""
+		# Create Votes table
+		cursor.execute("""
             CREATE TABLE IF NOT EXISTS Votes (
-                id SERIAL PRIMARY KEY,
-                session_id INTEGER NOT NULL REFERENCES Sessions(id) ON DELETE CASCADE,
-                user_id INTEGER NOT NULL REFERENCES Users(id) ON DELETE CASCADE,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
                 value INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT NOW()
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES Sessions(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES Users(id) ON DELETE CASCADE
             );
         """)
 
-    finally:
-        await conn.close()
+		conn.commit()
+	finally:
+		conn.close()
 
-# Example usage:
+
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(initialize_database())
+	initialize_database()
